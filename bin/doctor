@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# bin/gaia doctor — checks the tools, gaia.json, the repos and the human-owned docs. Read-only.
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+bad=0; ok() { echo "  ok    $*"; }; warn() { echo "  warn  $*"; }; no() { echo "  FAIL  $*"; bad=1; }
+echo "tools"
+for c in claude git jq gh; do command -v "$c" >/dev/null && ok "$c" || no "$c not installed"; done
+command -v docker >/dev/null && ok docker || warn "docker not installed (needed if your gates or stack use containers)"
+gh auth status >/dev/null 2>&1 && ok "gh is logged in" || warn "gh not logged in — run: gh auth login (needed to open PRs)"
+echo "config"
+if [ ! -f "$CFG" ]; then no "no gaia.json — run: bin/gaia init <repo-path>..."; exit 1; fi
+jq empty "$CFG" 2>/dev/null && ok "gaia.json is valid JSON" || { no "gaia.json is not valid JSON"; exit 1; }
+[ "$(jq '.repos | length' "$CFG")" -gt 0 ] && ok "$(jq '.repos | length' "$CFG") repo(s)" || no "no repos in gaia.json"
+grep -q 'TODO' "$CFG" && warn "gaia.json still has TODOs: $(grep -c TODO "$CFG") line(s)"
+kind=$(cfg '.tracker.kind' none); ok "tracker: $kind"
+[ "$kind" = github ] && [ -z "$(cfg '.tracker.github_repo')" ] && no "tracker.kind is github but tracker.github_repo is empty"
+echo "repos"
+while IFS= read -r r; do
+  p=$(repo_path "$r")
+  if ! git -C "$p" rev-parse --git-dir >/dev/null 2>&1; then no "$r: no git repo at $p"; continue; fi
+  b=$(repo_get "$r" '.base' "$(git_base)")
+  git -C "$p" ls-remote --exit-code --heads "$(git_remote)" "$b" >/dev/null 2>&1 && ok "$r: $p (base $b on $(git_remote))" || warn "$r: can't see $(git_remote)/$b (offline or wrong base?)"
+  { [ -f "$p/CLAUDE.md" ] || [ -f "$p/AGENTS.md" ]; } && ok "$r: has CLAUDE.md/AGENTS.md" || warn "$r: no CLAUDE.md — implementers work blind on conventions"
+  ng=$(jq --arg n "$r" '[.repos[] | select(.name==$n) | .gates[]?] | length' "$CFG"); [ "$ng" -gt 0 ] && ok "$r: $ng gate(s), tests: $(repo_get "$r" '.tests.policy' ci-only)" || no "$r: no gates"
+done < <(repo_names)
+echo "docs"
+grep -q 'TODO' "$F/docs/vision.md" 2>/dev/null && warn "docs/vision.md still has TODOs (humans own it; the planner reads it)" || ok "docs/vision.md"
+grep -q 'TODO' "$F/docs/primitives.md" 2>/dev/null && warn "docs/primitives.md still has TODOs (risk grading is generic until you fill it)" || ok "docs/primitives.md"
+if [ "$(cfg '.stack.enabled' false)" = true ]; then echo "stack"; d=$(cfg '.stack.dir' .); case "$d" in /*) ;; *) d="$F/$d";; esac
+  [ -d "$d" ] && ok "stack.dir $d" || no "stack.dir $d does not exist"; [ -n "$(cfg '.stack.up')" ] && ok "stack.up set" || no "stack.up empty"; fi
+echo; [ $bad -eq 0 ] && echo "ready: try  claude  then  /ship <TICKET>   (or bin/gaia run <TICKET>)" || echo "fix the FAIL lines above"
+echo "connectors: inside claude, run /mcp and log in to your tracker (Linear/Jira/GitHub) and docs source."
+exit $bad

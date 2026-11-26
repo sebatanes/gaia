@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# bin/prove-red <worktree> <test-path>...  — "a test must fail on the base before it passes on the change".
+# Runs ONLY the given (new/changed) tests against a throwaway checkout of <remote>/<base> plus those test files.
+# Exit 0 = proven (tests FAIL on base) or skipped by policy. Exit 1 = tests pass on base → they don't prove the change.
+# Needs repos[].tests.policy = "local" and a tests.cmd containing {paths}. With "ci-only" (the default) it skips.
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+wt=$(cd "${1:?worktree}" && pwd); shift
+IFS=$'\t' read -r repo t < <(wt_split "$(basename "$wt")")
+policy=$(repo_get "$repo" '.tests.policy' ci-only); tcmd=$(repo_get "$repo" '.tests.cmd')
+if [ "$policy" != local ] || [[ "$tcmd" != *"{paths}"* ]]; then echo "prove-red: SKIP (tests: CI only for $repo)"; exit 0; fi
+[ "$#" -gt 0 ] || die "usage: bin/prove-red <worktree> <test-path>..."
+base="$F/worktrees/.base-$repo-$t"; log="$F/runs/$t/prove-red-$repo.log"; mkdir -p "$F/runs/$t"
+git -C "$wt" worktree remove --force "$base" >/dev/null 2>&1 || true
+git -C "$wt" worktree add -q --detach "$base" "$(git_remote)/$(repo_get "$repo" '.base' "$(git_base)")"
+for p in "$@"; do mkdir -p "$base/$(dirname "$p")"; cp "$wt/$p" "$base/$p"; done
+while IFS= read -r f; do [ -n "$f" ] && [ -f "$wt/$f" ] && cp "$wt/$f" "$base/$f"; done < <(repo_get "$repo" '.copy_files[]?')
+(cd "$base" && COMPOSE_PROJECT_NAME="base-$(echo "$t" | lower)" bash -c "${tcmd//\{paths\}/$*}") > "$log" 2>&1; rc=$?
+(cd "$base" && COMPOSE_PROJECT_NAME="base-$(echo "$t" | lower)" docker compose down -v >/dev/null 2>&1) || true
+git -C "$wt" worktree remove --force "$base" >/dev/null 2>&1 || true
+if [ $rc -ne 0 ]; then echo "PROVEN red-on-base ($*) — log: $log"; exit 0
+else echo "NOT PROVEN: tests pass on the base without the change — they don't verify it. log: $log"; exit 1; fi

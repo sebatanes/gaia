@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# bin/gates <worktree-path> [--fast]  → runs the repo's gates from gaia.json, one PASS|FAIL|SKIP line per gate.
+# Exit 0 only if every gate is green. Full output goes to runs/<T>/gates-<repo>.log.
+#   repos[].gates[]   {name, cmd, fast?}   fast defaults to true; "fast": false = full run only
+#   repos[].tests     {policy: "ci-only"|"local", cmd, fast_cmd}   ci-only (default) never runs tests here
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+wt=$(cd "${1:?worktree}" && pwd); fast=${2:-}
+IFS=$'\t' read -r repo t < <(wt_split "$(basename "$wt")")
+log="$F/runs/$t/gates-$repo.log"; mkdir -p "$F/runs/$t"; : > "$log"
+export GAIA_DIR="$F" GAIA_TICKET="$t" GAIA_WT="$wt"
+cd "$wt"; rc=0; n=0
+run() { local label=$1 cmd=$2; n=$((n+1)); echo "### $label: $cmd" >> "$log"
+  if bash -c "$cmd" >> "$log" 2>&1; then echo "PASS $label"; else echo "FAIL $label"; rc=1; fi; }
+
+while IFS=$'\t' read -r name cmd isfast; do
+  [ -z "$name" ] && continue
+  if [ "$fast" = --fast ] && [ "$isfast" = false ]; then echo "SKIP $name (full run only)"; continue; fi
+  run "$name" "$cmd"
+done < <(jq -r --arg n "$repo" '.repos[] | select(.name==$n) | .gates[]? | [.name, .cmd, (if .fast == false then "false" else "true" end)] | @tsv' "$CFG")
+
+policy=$(repo_get "$repo" '.tests.policy' ci-only)
+if [ "$policy" = local ]; then
+  tcmd=$(repo_get "$repo" '.tests.cmd'); [ "$fast" = --fast ] && tcmd=$(repo_get "$repo" '.tests.fast_cmd' "$tcmd")
+  if [ -n "$tcmd" ]; then run test "${tcmd//\{paths\}/}"; else echo "SKIP test (tests.cmd not set)"; fi
+else
+  echo "SKIP test (tests: CI only — the PR's CI runs them)"
+fi
+[ "$n" -eq 0 ] && { echo "FAIL config (repo '$repo' has no gates in gaia.json — add at least a lint gate)"; rc=1; }
+echo "log: $log"; exit $rc

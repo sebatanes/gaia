@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# bin/gaia init [--tracker linear|jira|github|none] [--name NAME] [--team TEAM] [--force] <repo-path>...
+# Looks at each repo and writes a first gaia.json: name, path, role, base branch, suggested gates and test policy.
+# It only suggests: open gaia.json afterwards, check every gate command, then run bin/gaia doctor.
+set -euo pipefail
+F=$(cd "$(dirname "$0")/.." && pwd); out="${GAIA_CONFIG:-$F/gaia.json}"
+tracker=linear; name=""; team=""; force=0; paths=()
+while [ $# -gt 0 ]; do case "$1" in
+  --tracker) tracker=$2; shift 2;; --name) name=$2; shift 2;; --team) team=$2; shift 2;; --force) force=1; shift;;
+  -h|--help) sed -n '2,4p' "$0"; exit 0;; *) paths+=("$1"); shift;; esac; done
+[ "${#paths[@]}" -gt 0 ] || { echo "usage: bin/gaia init [--tracker linear|jira|github|none] [--name NAME] <repo-path>..." >&2; exit 1; }
+[ -f "$out" ] && [ "$force" -eq 0 ] && { echo "$out already exists (use --force to overwrite)" >&2; exit 1; }
+
+gate() { jq -nc --arg n "$1" --arg c "$2" --argjson f "${3:-true}" '{name:$n, cmd:$c, fast:$f}'; }
+has_profile() { grep -qE "profiles:.*\b$2\b|^\s*-\s*$2\s*$" "$1"/{docker-compose,compose}.y*ml 2>/dev/null; }
+has_make() { grep -qE "^$2:" "$1/Makefile" 2>/dev/null; }
+has_npm() { jq -e --arg s "$2" '.scripts[$s]' "$1/package.json" >/dev/null 2>&1; }
+
+repos="[]"; i=0
+for p in "${paths[@]}"; do
+  abs=$(cd "$p" && pwd) || { echo "skip $p (not a directory)" >&2; continue; }
+  git -C "$abs" rev-parse --git-dir >/dev/null 2>&1 || { echo "skip $p (not a git repo)" >&2; continue; }
+  rn=$(basename "$abs"); rel=$(python3 -I -c 'import os,sys;print(os.path.relpath(sys.argv[1],sys.argv[2]))' "$abs" "$F")
+  base=$(git -C "$abs" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true); base=${base#origin/}
+  [ -z "$base" ] && base=$(git -C "$abs" rev-parse --abbrev-ref HEAD 2>/dev/null || true); [ -z "$base" ] || [ "$base" = HEAD ] && base=main
+  stack=unknown; gates=(); tests='{"policy":"ci-only"}'; copy='[]'; notes=""
+  [ -f "$abs/.env" ] && copy='[".env"]'
+  if   [ -f "$abs/package.json" ]; then stack=node
+  elif [ -f "$abs/pyproject.toml" ] || [ -f "$abs/requirements.txt" ]; then stack=python
+  elif [ -f "$abs/go.mod" ]; then stack=go
+  elif [ -f "$abs/Cargo.toml" ]; then stack=rust
+  elif [ -f "$abs/pom.xml" ] || [ -f "$abs/build.gradle" ] || [ -f "$abs/build.gradle.kts" ]; then stack=jvm
+  elif ls "$abs"/{docker-compose,compose}.y*ml >/dev/null 2>&1; then stack=infra; fi
+  # gates: a container profile beats a Makefile target beats the language default
+  if has_profile "$abs" lint; then gates+=("$(gate lint 'docker compose --profile lint run --build --rm lint')")
+  elif has_make "$abs" lint; then gates+=("$(gate lint 'make lint')")
+  else case $stack in
+    node)   has_npm "$abs" lint && gates+=("$(gate lint 'npm run lint')")
+            has_npm "$abs" typecheck && gates+=("$(gate typecheck 'npm run typecheck')") ;;
+    python) gates+=("$(gate lint 'ruff check . && ruff format --check .')") ;;
+    go)     gates+=("$(gate vet 'go vet ./...')" "$(gate fmt 'test -z "$(gofmt -l .)"')") ;;
+    rust)   gates+=("$(gate fmt 'cargo fmt --check')" "$(gate clippy 'cargo clippy -- -D warnings' false)") ;;
+    jvm)    gates+=("$(gate build './gradlew check -x test || mvn -q verify -DskipTests')") ;;
+    infra)  gates+=("$(gate compose-config 'docker compose config -q')") ;;
+  esac; fi
+  [ "${#gates[@]}" -eq 0 ] && { gates+=("$(gate lint 'echo "TODO: set a real lint gate for this repo" && false')"); notes="TODO: no lint detected — set gates by hand."; }
+  case $stack in node) role=$([ $i -eq 0 ] && echo primary || echo consumer);; infra) role=infra;; *) role=$([ $i -eq 0 ] && echo primary || echo service);; esac
+  [ -f "$abs/openapi.json" ] && [ "$stack" != node ] && role=contract-owner
+  [ -f "$abs/CLAUDE.md" ] || [ -f "$abs/AGENTS.md" ] || notes="${notes:+$notes }No CLAUDE.md in this repo — the implementer will have little to go on; add one."
+  g=$(printf '%s\n' "${gates[@]}" | jq -sc .)
+  repos=$(jq -c --arg n "$rn" --arg p "$rel" --arg r "$role" --arg b "$base" --arg s "$stack" --argjson g "$g" \
+      --argjson t "$tests" --argjson c "$copy" --arg no "$notes" \
+      '. + [{name:$n, path:$p, role:$r, stack:$s, base:$b, description:"TODO: one line on what this repo is", gates:$g, tests:$t, copy_files:$c, notes:$no}]' <<< "$repos")
+  i=$((i+1)); echo "found $rn ($stack, $role, base $base): $(jq -r 'map(.name)|join(", ")' <<< "$g")"
+done
+[ "$repos" = "[]" ] && { echo "no usable repos" >&2; exit 1; }
+
+kp='[A-Z][A-Z0-9]+-[0-9]+'; [ "$tracker" = github ] && kp='GH-[0-9]+'
+jq -n --arg name "${name:-$(jq -r '.[0].name' <<< "$repos")}" --arg tr "$tracker" --arg team "$team" --arg kp "$kp" --argjson repos "$repos" '{
+  project: {name: $name, description: "TODO: what the product is, in one sentence"},
+  tracker: {kind: $tr, team: $team, key_pattern: $kp, pickup_label: "gaia", github_repo: "",
+            language: "English", comment_on_tickets: false, move_status: false},
+  docs:    {kind: "any", write_allowed: false},
+  git:     {base: "main", remote: "origin", branch_prefix: "feat/", draft_prs: true, max_files: 40, forbidden_paths_regex: ""},
+  repos:   $repos,
+  stack:   {enabled: false, dir: ".", up: "docker compose up -d --build", smoke: "", restore: "docker compose up -d --build",
+            urls: {app: "http://localhost:3000"}, login: "", logs: "docker compose logs --since 15m"},
+  design:  {figma: false},
+  rules:   []
+}' > "$out"
+echo; echo "wrote $out"
+echo "next: 1) open it and fix every TODO and gate command   2) fill docs/vision.md   3) bin/gaia doctor   4) bin/gaia tutorial"

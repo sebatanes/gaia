@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Template: __GAIA_DIR__ is replaced at install time. See the tutorial, step "Run it on a schedule". -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.gaia.poll</string>
+  <key>ProgramArguments</key><array><string>/bin/zsh</string><string>-lc</string>
+    <string>cd __GAIA_DIR__ &amp;&amp; bin/gaia poll</string></array>
+  <key>StartInterval</key><integer>1800</integer>
+  <key>StandardOutPath</key><string>/tmp/gaia-poll.log</string>
+  <key>StandardErrorPath</key><string>/tmp/gaia-poll.log</string>
+</dict></plist>

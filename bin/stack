@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# bin/stack up|down|env <TICKET>  — run the project's local stack against the ticket's worktrees (gaia.json .stack).
+#   up    takes the stack lock, exports GAIA_WT_<REPO>=<worktree path> for every worktree the ticket has,
+#         then runs stack.up and stack.smoke inside stack.dir. Your up command decides how to use those vars
+#         (e.g. a compose file with  build: ${GAIA_WT_API:-../api}). See the tutorial, step "Local stack".
+#   down  runs stack.restore with the vars unset (back on the user's own checkouts) and releases the lock.
+#   env   prints the export lines only (to run things by hand).
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+act=${1:?up|down|env}; t=${2:?ticket}
+[ "$(cfg '.stack.enabled' false)" = true ] || die "stack: disabled in gaia.json (.stack.enabled) — browser QA is not available"
+dir=$(cfg '.stack.dir' .); case "$dir" in /*) ;; *) dir="$F/$dir";; esac
+exports() { echo "export GAIA_TICKET=$t"
+  while IFS= read -r r; do [ -d "$F/worktrees/$r-$t" ] && echo "export $(wt_var "$r")=$F/worktrees/$r-$t"; done < <(repo_names); }
+case "$act" in
+  env) exports ;;
+  up)
+    "$F/bin/stack-lock" acquire "$t"
+    eval "$(exports)"
+    cd "$dir"
+    echo "== stack up ($t) in $dir"; bash -c "$(cfg '.stack.up')"
+    smoke=$(cfg '.stack.smoke'); [ -n "$smoke" ] && { echo "== smoke"; bash -c "$smoke"; }
+    echo "== stack is on $t's worktrees. URLs:"; cfg_json '.stack.urls // {}' | jq -r 'to_entries[] | "   \(.key): \(.value)"' ;;
+  down)
+    while IFS= read -r r; do unset "$(wt_var "$r")"; done < <(repo_names); unset GAIA_TICKET
+    cd "$dir"; restore=$(cfg '.stack.restore' "$(cfg '.stack.up')")
+    echo "== restoring the stack to your own checkouts"; bash -c "$restore" || echo "restore failed — run it by hand: (cd $dir && $restore)" >&2
+    "$F/bin/stack-lock" release "$t" ;;
+  *) die "usage: bin/stack up|down|env <TICKET>" ;;
+esac

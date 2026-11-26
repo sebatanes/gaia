@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# gaia — ticket → reviewed, ticket-linked PR, for any project described in gaia.json.
+#   bin/gaia init [--tracker linear|jira|github|none] [--name NAME] <repo-path>...   write gaia.json from your repos
+#   bin/gaia doctor                     check tools, config, repos and connectors
+#   bin/gaia tutorial                   open the step-by-step tutorial (site/index.html)
+#   bin/gaia run [--browser] <TICKET>   full pipeline, unattended (claude -p "/ship <TICKET>")
+#   bin/gaia resume [--browser] <TICKET> continue the saved session from its last phase
+#   bin/gaia queue [--browser] <TICKET...> run tickets one after another (keys or tracker URLs). Blocked ones are skipped.
+#   bin/gaia status                     tickets in flight
+#   bin/gaia poll                       pick up tracker issues with the pickup label (rate limited)
+#   bin/gaia address <TICKET>           handle PR review comments / failing checks on the ticket's PR(s)
+#   bin/gaia nightly                    background quality pass (report-first)
+#   bin/gaia tickets <URL>              draft tickets from a spec/PRD/tracker page (creates nothing)
+# Env: GAIA_BUDGET_USD (per-run cap), GAIA_MODEL, GAIA_MAX_PER_POLL (default 3), GAIA_NIGHTLY_FILE=1, GAIA_CONFIG
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+# init resolves repo paths from where you ran it; everything else runs from the Gaia folder
+[ "${1:-}" = init ] && { shift; exec "$F/bin/init" "$@"; }
+cd "$F"
+# Headless `claude -p` stops background subagents 10 min after its last turn; long implementers need longer.
+export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS:-0}"
+
+usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
+dirs() { DIRS=(); local r; while IFS= read -r r; do DIRS+=(--add-dir "$(repo_path "$r")"); done < <(repo_names); }
+BUDGET_ARGS=(); [ -n "${GAIA_BUDGET_USD:-}" ] && BUDGET_ARGS=(--max-budget-usd "$GAIA_BUDGET_USD")
+MODEL_ARGS=(); [ -n "${GAIA_MODEL:-}" ] && MODEL_ARGS=(--model "$GAIA_MODEL")
+
+headless() { # <TICKET> <session-flag...> <prompt>
+  local t=$1; shift; local out="runs/$t/stream.jsonl"; mkdir -p "runs/$t"; echo "$t" > runs/.current
+  local start; start=$(date +%s); dirs
+  set +e
+  claude -p "$@" "${DIRS[@]}" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} ${BUDGET_ARGS[@]+"${BUDGET_ARGS[@]}"} --permission-mode auto \
+    --output-format stream-json --verbose | tee -a "$out" | jq -r --unbuffered '
+      select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' 2>/dev/null
+  local rc=${PIPESTATUS[0]}; set -e
+  jq -s --arg wall "$(( $(date +%s) - start ))" '[.[] | select(.type=="result")] | last
+      | {cost_usd: .total_cost_usd, duration_ms, num_turns, is_error, subtype, wall_s: ($wall|tonumber)}' "$out" \
+    > "runs/$t/cost.json" 2>/dev/null || true
+  return $rc
+}
+show_cost() { local c; c=$(jq -r '"$\(.cost_usd // "?") · \((.wall_s // 0)/60|floor) min · \(.num_turns // "?") turns"' "runs/$1/cost.json" 2>/dev/null) || return 0
+  echo "== $1 run cost: $c (local only, never posted)"; }
+browser_ask='The user explicitly requested Playwright browser QA for this run.'
+
+# One ticket in a queue. 0 = ran, 10 = already done, 11 = blocked, 12 = run failed.
+queue_one() { local t=$1 phase="" sid=""
+  if [ -f "runs/$t/state.json" ]; then phase=$(jq -r '.phase // ""' "runs/$t/state.json"); sid=$(jq -r '.session_id // ""' "runs/$t/state.json"); fi
+  case "$phase" in
+    done) echo "== $t already done — skip"; return 10 ;;
+    blocked-*) echo "== $t is $phase — skip (unblock, then bin/gaia resume $t)"; return 11 ;;
+  esac
+  if [ -n "$phase" ] && [ -n "$sid" ] && [ "$sid" != null ]; then echo "== queue: resume $t ($phase)"; "$0" resume "$t" || return 12
+  else echo "== queue: run $t"; "$0" run "$t" || return 12; fi; }
+
+case "${1:-}" in
+  doctor)  exec "$F/bin/doctor" ;;
+  tutorial) f="$F/site/index.html"; echo "tutorial: $f"; (open "$f" 2>/dev/null || xdg-open "$f" 2>/dev/null) || true ;;
+  run)
+    [ "${2:-}" = --browser ] && { export GAIA_BROWSER=1; shift; }
+    t=${2:?ticket}; need_cfg; sid=$(uuidgen | lower)
+    bin/state "$t" set session_id "\"$sid\""; bin/state "$t" set mode '"headless"'
+    prompt="/ship $t"; [ -n "${GAIA_BROWSER:-}" ] && prompt="$prompt
+
+$browser_ask"
+    headless "$t" --session-id "$sid" "$prompt" && show_cost "$t" ;;
+  resume)
+    [ "${2:-}" = --browser ] && { export GAIA_BROWSER=1; shift; }
+    t=${2:?ticket}; sid=$(bin/state "$t" get | jq -r .session_id)
+    [ "$sid" != null ] || die "no session for $t — use: bin/gaia run $t"
+    prompt="Resume /ship $t from the phase in runs/$t/state.json."; [ -n "${GAIA_BROWSER:-}" ] && prompt="$prompt $browser_ask"
+    headless "$t" --resume "$sid" "$prompt" && show_cost "$t" ;;
+  status)
+    found=0
+    for s in runs/*/state.json; do [ -f "$s" ] || continue; found=1
+      jq -r '[.ticket, .phase, ((.prs // {}) | to_entries | map(.value) | join(" ")), (.history[-1].ts // .started)] | @tsv' "$s"
+    done | column -t -s $'\t'
+    echo "stack: $(bin/stack-lock status)"; [ -f runs/.queue ] && echo "queue: $(paste -sd ' ' runs/.queue)"; true ;;
+  queue)
+    shift; args=()
+    for a in "$@"; do if [ "$a" = --browser ]; then export GAIA_BROWSER=1; else args+=("$a"); fi; done
+    [ "${#args[@]}" -gt 0 ] || die "usage: bin/gaia queue [--browser] TICKET...   (a key or a tracker URL)"
+    keys=(); fin=0; skip=0; stop=0; pat=$(key_pattern)
+    for a in "${args[@]}"; do found=0
+      while IFS= read -r k; do [ -n "$k" ] && { keys+=("$k"); found=1; }; done < <(grep -Eo "$pat" <<< "$a" | head -1 || true)
+      [ "$found" -eq 0 ] && { echo "== skip '$a' (no ticket key matching $pat)" >&2; stop=$((stop+1)); }
+    done
+    [ "${#keys[@]}" -gt 0 ] || { echo "== queue done: 0 finished, $stop stopped"; exit 1; }
+    mkdir -p runs; printf '%s\n' "${keys[@]}" > runs/.queue
+    echo "== queue (${#keys[@]} tickets, one at a time${GAIA_BROWSER:+, Playwright on}): ${keys[*]}"
+    for t in "${keys[@]}"; do
+      if queue_one "$t"; then
+        phase=$(jq -r '.phase // ""' "runs/$t/state.json" 2>/dev/null || true)
+        if [[ "$phase" == blocked-* ]]; then echo "== $t is $phase — left for later"; stop=$((stop+1)); else fin=$((fin+1)); fi
+      else rc=$?
+        if [ "$rc" -eq 10 ]; then skip=$((skip+1)); else [ "$rc" -eq 11 ] || echo "== $t ended non-zero (see runs/$t)"; stop=$((stop+1)); fi
+      fi
+      [ "$(bin/stack-lock status)" = "$t" ] && bin/stack-lock release "$t" >/dev/null
+    done
+    echo "== queue done: $fin finished, $skip already done, $stop stopped"; [ "$stop" -eq 0 ] ;;
+  poll)
+    kind=$(cfg '.tracker.kind' none); label=$(cfg '.tracker.pickup_label' gaia); pat=$(key_pattern)
+    case "$kind" in
+      github) gr=$(cfg '.tracker.github_repo'); [ -n "$gr" ] || die "poll: set tracker.github_repo (owner/name)"
+              keys=$(gh issue list -R "$gr" --label "$label" --state open --json number,labels \
+                     -q '.[] | select([.labels[].name] | index("gaia-blocked") | not) | "GH-\(.number)"') ;;
+      linear|jira)
+              team=$(cfg '.tracker.team'); keys=$(claude -p --model haiku --permission-mode auto "Using the $kind connector, list issues${team:+ in team/project '$team'} that have label '$label', do NOT have label 'gaia-blocked', and whose state is not started yet (Todo/Backlog). Output ONLY their identifiers, one per line, nothing else." 2>/dev/null | grep -Eo "^$pat\$" || true) ;;
+      *) die "poll: tracker.kind is '$kind' — poll needs linear, jira or github" ;;
+    esac
+    n=0
+    for t in $keys; do [ -f "runs/$t/state.json" ] && continue
+      [ "$n" -ge "${GAIA_MAX_PER_POLL:-3}" ] && { echo "== rate limit reached ($n); rest next poll"; break; }
+      echo "== gaia: picking up $t"; "$0" run "$t" || echo "== $t ended non-zero (see runs/$t)"; n=$((n+1))
+    done ;;
+  address) t=${2:?ticket}; headless "$t" "/address-review $t" ;;
+  nightly)
+    d=$(date +%F); mkdir -p runs/_nightly; echo "_nightly" > runs/.current; dirs
+    claude -p "/nightly" "${DIRS[@]}" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} --permission-mode auto --max-budget-usd "${GAIA_NIGHTLY_BUDGET_USD:-10}" \
+      --output-format stream-json --verbose > "runs/_nightly/$d.stream.jsonl" 2>&1 || true
+    echo "report: runs/_nightly/$d.md" ;;
+  tickets)
+    url=${2:?spec URL}; d="runs/_tickets/$(date +%F)-headless-$(date +%H%M%S)"; mkdir -p "$d"; dirs
+    claude -p "/tickets $url
+
+Headless draft run: do steps 1-5 of docs-to-tickets only. Write drafts.md and questions.md to $d. Do NOT create, edit or comment on anything in the tracker or the docs." \
+      "${DIRS[@]}" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} ${BUDGET_ARGS[@]+"${BUDGET_ARGS[@]}"} --permission-mode auto \
+      --output-format stream-json --verbose > "$d/stream.jsonl" 2>&1 || true
+    echo "drafts: $d/drafts.md  ·  questions: $d/questions.md  ·  continue with /tickets $url" ;;
+  -h|--help|help) usage 0 ;;
+  *) usage ;;
+esac

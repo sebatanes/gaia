@@ -1,0 +1,49 @@
+{
+  "project": { "name": "Acme", "description": "Acme is a B2B invoicing app: a REST API and a React web client." },
+  "tracker": {
+    "kind": "linear", "team": "ENG", "key_pattern": "ENG-[0-9]+", "pickup_label": "gaia",
+    "language": "English", "comment_on_tickets": false, "move_status": false, "review_state": "In Review"
+  },
+  "docs": { "kind": "notion", "write_allowed": false },
+  "git": { "base": "main", "remote": "origin", "branch_prefix": "feat/", "draft_prs": true, "max_files": 40 },
+  "repos": [
+    {
+      "name": "api", "path": "../acme-api", "role": "contract-owner", "stack": "python",
+      "description": "FastAPI backend, Postgres, owns openapi.json",
+      "gates": [
+        { "name": "lint", "cmd": "docker compose --profile lint run --build --rm lint" },
+        { "name": "openapi", "cmd": "docker compose --profile openapi run --build --rm openapi --check" }
+      ],
+      "tests": { "policy": "ci-only" },
+      "copy_files": [".env"],
+      "contract": { "file": "openapi.json", "regen": "docker compose --profile openapi run --build --rm openapi" },
+      "notes": "Every schema change needs an Alembic migration. No raw SQL.",
+      "review_checklist": ["authz check on every new endpoint", "migration has a working downgrade", "no PII in logs"],
+      "ci": { "workflow": "ci.yml", "junit_artifact": "junit-*" }
+    },
+    {
+      "name": "web", "path": "../acme-web", "role": "consumer", "stack": "node",
+      "description": "React + Vite + TypeScript client",
+      "gates": [
+        { "name": "lint", "cmd": "docker compose --profile lint run --build --rm lint" },
+        { "name": "test", "cmd": "docker compose --profile test run --build --rm test", "fast": false }
+      ],
+      "tests": { "policy": "local", "cmd": "docker compose --profile test run --build --rm test npx vitest run {paths}" },
+      "copy_files": [".env"],
+      "contract": { "from": "api", "file": "openapi.json", "codegen": "docker compose --profile codegen run --build --rm codegen" },
+      "notes": "Use shared components in src/shared and the typed API client. No hard-coded colors.",
+      "review_checklist": ["loading, empty and error states", "keyboard accessible, every control has an accessible name"]
+    }
+  ],
+  "stack": {
+    "enabled": true, "dir": "../acme-api",
+    "up": "docker compose -f compose.yml -f compose.gaia.yml up -d --build",
+    "smoke": "curl -fsS http://localhost:8000/health",
+    "restore": "docker compose up -d --build",
+    "urls": { "app": "http://localhost:3000", "api docs": "http://localhost:8000/docs" },
+    "login": "make token EMAIL=dev@local — paste it in the sign-in form",
+    "logs": "docker compose logs api --since 15m"
+  },
+  "design": { "figma": true },
+  "rules": ["Never change pricing or billing behaviour without a human decision."]
+}

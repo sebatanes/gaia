@@ -1,0 +1,11 @@
+{
+  "project": { "name": "my-app", "description": "A single Node.js repo tracked in GitHub Issues." },
+  "tracker": { "kind": "github", "github_repo": "me/my-app", "key_pattern": "GH-[0-9]+", "pickup_label": "gaia", "language": "English" },
+  "git": { "base": "main" },
+  "repos": [
+    { "name": "app", "path": "../my-app", "role": "primary", "description": "Next.js app",
+      "gates": [ { "name": "lint", "cmd": "npm run lint" }, { "name": "typecheck", "cmd": "npx tsc --noEmit" } ],
+      "tests": { "policy": "ci-only" } }
+  ],
+  "stack": { "enabled": false }
+}

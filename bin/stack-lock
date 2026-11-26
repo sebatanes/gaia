@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# bin/stack-lock acquire|release|status [<TICKET>]  — the local stack is exclusive: one ticket at a time.
+set -euo pipefail
+F=$(cd "$(dirname "$0")/.." && pwd); L="$F/runs/.stack.lock"; act=${1:-status}; t=${2:-}; mkdir -p "$F/runs"
+case "$act" in
+  acquire) [ -n "$t" ] || { echo "usage: bin/stack-lock acquire <TICKET>" >&2; exit 1; }
+           if [ -f "$L" ] && [ "$(cat "$L")" != "$t" ]; then echo "stack held by $(cat "$L")" >&2; exit 1; fi
+           echo "$t" > "$L"; echo "acquired by $t";;
+  release) [ -f "$L" ] && [ "$(cat "$L")" = "$t" ] && rm -f "$L"; echo released;;
+  status)  cat "$L" 2>/dev/null || echo free;;
+  *) echo "usage: bin/stack-lock acquire|release|status [<TICKET>]" >&2; exit 1;;
+esac

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# bin/state <TICKET> get | set <key> <json-value> | phase <name>   — runs/<T>/state.json (resume source of truth)
+set -euo pipefail
+F=$(cd "$(dirname "$0")/.." && pwd); t=${1:?ticket}; s="$F/runs/$t/state.json"; mkdir -p "$F/runs/$t"
+[ -f "$s" ] || echo "{\"ticket\":\"$t\",\"phase\":\"intake\",\"started\":\"$(date -u +%FT%TZ)\",\"history\":[]}" > "$s"
+case "${2:-get}" in
+  get) cat "$s";;
+  set) tmp=$(mktemp); jq --arg k "${3:?key}" --argjson v "${4:?json value}" '.[$k]=$v' "$s" > "$tmp" && mv "$tmp" "$s";;
+  phase) tmp=$(mktemp); jq --arg p "${3:?phase}" --arg ts "$(date -u +%FT%TZ)" '.phase=$p | .history += [{phase:$p, ts:$ts}]' "$s" > "$tmp" && mv "$tmp" "$s"; echo "$t → $3";;
+  *) echo "usage: bin/state <TICKET> get | set <key> <json> | phase <name>" >&2; exit 1;;
+esac

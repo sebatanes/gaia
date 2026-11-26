@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# bin/worktree <repo> <TICKET> <slug>  → creates/reuses worktrees/<repo>-<TICKET> on <prefix><ticket-lower>-<slug>
+# off a fresh <remote>/<base>. Deterministic on purpose: the agent should not re-derive branch/worktree mechanics.
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+repo=${1:?repo}; t=${2:?ticket}; slug=${3:?slug}
+src=$(repo_path "$repo"); wt="$F/worktrees/$repo-$t"
+base=$(repo_get "$repo" '.base' "$(git_base)"); remote=$(git_remote)
+br="$(branch_prefix)$(echo "$t" | lower)-$slug"
+git -C "$src" rev-parse --git-dir >/dev/null 2>&1 || die "no git repo at $src"
+if [ -d "$wt" ]; then echo "$wt"; exit 0; fi
+mkdir -p "$F/worktrees"
+git -C "$src" fetch -q "$remote" "$base"
+if git -C "$src" show-ref -q --verify "refs/heads/$br"; then git -C "$src" worktree add -q "$wt" "$br"
+else git -C "$src" worktree add -q -b "$br" "$wt" "$remote/$base"; fi
+# carry the repo's untracked local config the gates need (never committed; preflight blocks them)
+while IFS= read -r f; do [ -n "$f" ] && [ -f "$src/$f" ] && [ ! -e "$wt/$f" ] && cp "$src/$f" "$wt/$f"
+done < <(repo_get "$repo" '.copy_files[]?')
+echo "$wt"

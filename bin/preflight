@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# bin/preflight <worktree> <TICKET>  — deterministic fail-closed check BEFORE any push/PR (a command, not a checklist).
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+wt=$(cd "${1:?worktree}" && pwd); t=${2:?ticket}; fail=0
+IFS=$'\t' read -r repo _ < <(wt_split "$(basename "$wt")")
+base="$(git_remote)/$(repo_get "$repo" '.base' "$(git_base)")"; pfx=$(branch_prefix)
+no() { echo "FAIL $1"; fail=1; }; ok() { echo "ok   $1"; }
+br=$(git -C "$wt" rev-parse --abbrev-ref HEAD)
+[[ "$br" == "$pfx"* ]] && ok "branch $br" || no "branch '$br' is not $pfx*"
+low=$(echo "$t" | lower); [[ "$br" == *"$low"* ]] && ok "ticket key in branch" || no "ticket key $t missing from branch"
+g="$F/runs/$t/gates.md"
+if [ -f "$g" ] && grep -q '^PASS' "$g" && ! grep -q '^FAIL' "$g"; then ok "gates.md all PASS"; else no "gates.md missing or has FAIL"; fi
+files=$(git -C "$wt" diff --name-only "$base"...HEAD; git -C "$wt" diff --name-only --cached; git -C "$wt" ls-files --others --exclude-standard)
+extra=$(cfg '.git.forbidden_paths_regex' '')
+re='(^|/)\.env($|\.)|\.pem$|\.key$|coverage\.xml|\.coverage|node_modules/|(^|/)runs/|\.DS_Store'; [ -n "$extra" ] && re="$re|$extra"
+bad=$(echo "$files" | grep -E "$re" | grep -v '\.env\.example' || true)
+[ -z "$bad" ] && ok "no stray/secret files" || no "stray files: $bad"
+sec=$( { git -C "$wt" diff "$base"...HEAD; git -C "$wt" diff --cached; } | grep -E '^\+' | grep -iE '(api[_-]?key|secret|password|token|pat)\s*[:=]\s*["'"'"'][A-Za-z0-9/+_-]{16,}|gh[pousr]_[A-Za-z0-9]{30,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY' || true)
+[ -z "$sec" ] && ok "no secret-looking literals in diff" || no "secret-looking literal in diff"
+max=$(max_files); n=$(echo "$files" | sort -u | grep -c . || true)
+[ "$n" -le "$max" ] && ok "$n files changed" || no "$n files changed (>$max) — ticket too big, split it"
+exit $fail

@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaia — tutorial</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2714%27 fill=%27%232f6b4f%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%274%27 fill=%27%23fff%27/%3E%3C/svg%3E">
+<meta name="description" content="How to use Gaia: from a ticket to a reviewed, linked PR, in any project.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #ffffff; --surface: #ffffff; --surface-2: #fafafa; --surface-3: #f2f2f2;
+  --ink: #171717; --ink-2: #4d4d4d; --ink-3: #8f8f8f;
+  --line: #eaeaea; --line-2: #d4d4d4;
+  --accent: #171717; --accent-ink: #ffffff; --accent-soft: #f2f2f2;
+  --link: #0068d6; --focus: #0070f3;
+  --warn: #a35200; --warn-soft: #fff6e5; --bad: #cb2a2f; --bad-soft: #ffebeb;
+  --code-bg: #fafafa; --code-ink: #171717; --code-dim: #8f8f8f; --code-line: #eaeaea;
+ 
+  --radius: 8px;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --surface: #0a0a0a; --surface-2: #111111; --surface-3: #1a1a1a;
+    --ink: #ededed; --ink-2: #a1a1a1; --ink-3: #6e6e6e;
+    --line: #242424; --line-2: #333333;
+    --accent: #ededed; --accent-ink: #0a0a0a; --accent-soft: #1a1a1a;
+    --link: #52a8ff; --focus: #52a8ff;
+    --warn: #ffb224; --warn-soft: #1f1300; --bad: #ff6166; --bad-soft: #260a0b;
+    --code-bg: #0a0a0a; --code-ink: #ededed; --code-dim: #6e6e6e; --code-line: #242424;
+   
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --surface: #0a0a0a; --surface-2: #111111; --surface-3: #1a1a1a;
+  --ink: #ededed; --ink-2: #a1a1a1; --ink-3: #6e6e6e;
+  --line: #242424; --line-2: #333333;
+  --accent: #ededed; --accent-ink: #0a0a0a; --accent-soft: #1a1a1a;
+  --link: #52a8ff; --focus: #52a8ff;
+  --warn: #ffb224; --warn-soft: #1f1300; --bad: #ff6166; --bad-soft: #260a0b;
+  --code-bg: #0a0a0a; --code-ink: #ededed; --code-dim: #6e6e6e; --code-line: #242424;
+ 
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.65 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+::selection { background: var(--focus); color: #fff; }
+code { font-family: var(--mono); font-size: .85em; background: var(--surface-3); border: 1px solid var(--line); padding: .05em .35em; border-radius: 5px; overflow-wrap: anywhere; }
+h1, h2, h3 { line-height: 1.2; letter-spacing: -.035em; font-weight: 600; }
+h2 { font-size: 1.75rem; margin: .3rem 0 .5rem; }
+h3 { font-size: 1.05rem; letter-spacing: -.015em; margin: 1.8rem 0 .5rem; }
+p { margin: .6rem 0; color: var(--ink-2); }
+p b, li b { color: var(--ink); }
+li { color: var(--ink-2); }
+.muted { color: var(--ink-2); }
+.small { font-size: .85rem; }
+
+/* layout */
+.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 80%, transparent); backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--line); }
+.top-in { max-width: 1200px; margin: 0 auto; padding: 0 16px; height: 56px; display: flex; align-items: center; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 1rem; letter-spacing: -.02em; text-decoration: none !important; color: var(--ink); }
+.brand svg { width: 22px; height: 22px; }
+.brand .sep { color: var(--line-2); font-weight: 300; font-size: 1.3rem; margin: 0 -2px; }
+.brand .crumb { color: var(--ink-2); font-weight: 500; }
+.progress { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bar { flex: 1; height: 4px; background: var(--surface-3); border-radius: 99px; overflow: hidden; max-width: 200px; margin-left: auto; }
+.bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #0070f3, #7928ca, #ff0080); transition: width .3s; }
+.progress span { font: .78rem var(--mono); color: var(--ink-3); white-space: nowrap; }
+.icon-btn { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; height: 32px; padding: 0 12px; cursor: pointer; font: 500 .82rem var(--sans); transition: background .15s, border-color .15s; }
+.icon-btn:hover { background: var(--surface-3); border-color: var(--line-2); }
+.menu-btn { display: none; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 48px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 56px); overflow: auto; padding: 28px 0; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; }
+nav.toc li a { display: flex; gap: 10px; align-items: center; padding: 5px 10px; border-radius: 6px; color: var(--ink-2); text-decoration: none; font-size: .875rem; transition: background .15s, color .15s; }
+nav.toc li a:hover { background: var(--surface-3); color: var(--ink); }
+nav.toc li a.active { background: var(--surface-3); color: var(--ink); font-weight: 500; }
+nav.toc .num { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line-2); display: grid; place-items: center; font: 500 .66rem var(--mono); color: var(--ink-3); }
+nav.toc li.done .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+nav.toc .group { margin: 20px 10px 6px; font: 500 .7rem var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+nav.toc .group:first-child { margin-top: 0; }
+main { padding: 0 0 120px; min-width: 0; }
+section.step { padding: 48px 0 36px; border-bottom: 1px solid var(--line); scroll-margin-top: 56px; }
+.eyebrow { display: inline-block; font: 500 .72rem var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+section.step > .eyebrow { border: 1px solid var(--line); border-radius: 99px; padding: 2px 10px; background: var(--surface-2); }
+.done-row { margin-top: 22px; }
+.check { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); cursor: pointer; font-size: .85rem; font-weight: 500; color: var(--ink-2); user-select: none; transition: border-color .15s, background .15s; }
+.check:hover { border-color: var(--line-2); }
+.check input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.check:has(input:checked) { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+
+/* hero */
+.hero { padding: 72px 0 56px; border-bottom: 1px solid var(--line); }
+.hero h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); letter-spacing: -.05em; margin: .8rem 0 1rem; max-width: 760px;
+  background: linear-gradient(180deg, var(--ink) 30%, color-mix(in srgb, var(--ink) 55%, transparent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p.lead { font-size: 1.12rem; color: var(--ink-2); max-width: 640px; }
+.hero .eyebrow { border: 1px solid var(--line); border-radius: 99px; padding: 3px 12px; background: var(--surface); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.chip { font: .78rem var(--mono); padding: 4px 10px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }
+
+/* cards & callouts */
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 18px 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; transition: border-color .15s, background .15s; }
+.card:hover { border-color: var(--line-2); background: var(--surface-2); }
+.card h4 { margin: 0 0 6px; font-size: .95rem; font-weight: 600; letter-spacing: -.01em; }
+.card p { margin: 0; font-size: .875rem; color: var(--ink-2); }
+.callout { border: 1px solid var(--line); background: var(--surface-2); padding: 12px 16px; border-radius: var(--radius); margin: 18px 0; font-size: .9rem; color: var(--ink-2); }
+.callout b:first-child { display: block; margin-bottom: 2px; color: var(--ink); font-weight: 600; }
+.callout.warn { border-color: color-mix(in srgb, var(--warn) 35%, transparent); background: var(--warn-soft); }
+.callout.warn b:first-child { color: var(--warn); }
+.callout.bad { border-color: color-mix(in srgb, var(--bad) 35%, transparent); background: var(--bad-soft); }
+.callout.bad b:first-child { color: var(--bad); }
+
+/* code */
+.code { position: relative; background: var(--code-bg); color: var(--code-ink); border: 1px solid var(--code-line); border-radius: var(--radius); margin: 14px 0; }
+.code pre { margin: 0; padding: 16px 18px; overflow-x: auto; font: .82rem/1.7 var(--mono); }
+.code .c { color: var(--code-dim); }
+.code .copy { position: absolute; top: 8px; right: 8px; background: var(--bg); color: var(--ink-2); border: 1px solid var(--line); border-radius: 6px; font: 500 .72rem var(--sans); padding: 3px 9px; cursor: pointer; transition: color .15s, border-color .15s; }
+.code .copy:hover { color: var(--ink); border-color: var(--line-2); }
+.code .label { display: block; font: 500 .7rem var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--code-dim); padding: 10px 18px 9px; border-bottom: 1px solid var(--code-line); }
+
+/* tables */
+.tbl { width: 100%; overflow-x: auto; margin: 14px 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: .875rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-2); }
+td:first-child { color: var(--ink); }
+th { font: 500 .7rem var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background .15s; }
+tbody tr:hover { background: var(--surface-2); }
+
+/* pipeline */
+.pipe { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 12px; }
+.pipe button { border: 1px solid var(--line); background: var(--bg); color: var(--ink-2); border-radius: 6px; height: 32px; padding: 0 12px; font: 500 .82rem var(--sans); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: border-color .15s, color .15s; }
+.pipe button:hover { border-color: var(--line-2); color: var(--ink); }
+.pipe button .n { font: 500 .7rem var(--mono); color: var(--ink-3); }
+.pipe button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pipe button[aria-selected="true"] .n { color: var(--accent-ink); opacity: .6; }
+.phase { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; }
+.phase h4 { margin: 0 0 4px; font-size: 1.15rem; font-weight: 600; letter-spacing: -.02em; }
+.phase .who { font: .78rem var(--mono); color: var(--ink-3); }
+.phase dl { display: grid; grid-template-columns: 130px 1fr; gap: 10px 16px; margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--line); font-size: .9rem; }
+.phase dt { color: var(--ink-3); font: 500 .72rem var(--mono); text-transform: uppercase; letter-spacing: .04em; padding-top: 3px; }
+.phase dd { margin: 0; color: var(--ink-2); }
+.phase dd.mono { font-family: var(--mono); font-size: .82rem; color: var(--ink); }
+.phase .nav { display: flex; justify-content: space-between; margin-top: 20px; gap: 8px; }
+.btn { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; height: 36px; padding: 0 16px; font: 500 .875rem var(--sans); cursor: pointer; transition: background .15s, border-color .15s, opacity .15s; }
+.btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--line-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover:not(:disabled) { background: var(--accent); opacity: .85; }
+.btn:disabled { opacity: .35; cursor: default; }
+
+/* diagram */
+.flow { width: 100%; height: auto; display: block; margin: 16px 0; }
+.flow .box { fill: var(--surface); stroke: var(--line-2); }
+.flow .box.hl { fill: var(--surface-2); stroke: var(--ink-3); }
+.flow text { fill: var(--ink); font: 600 13px var(--sans); letter-spacing: -.01em; }
+.flow .sub { fill: var(--ink-3); font: 400 10.5px var(--mono); letter-spacing: 0; }
+.flow .arrow { stroke: var(--ink-3); stroke-width: 1.25; fill: none; }
+.flow .ah { fill: var(--ink-3); }
+
+/* builder */
+.builder { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+.form { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.form fieldset { border: 0; margin: 0 0 18px; padding: 0; }
+.form legend { font: 500 .72rem var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); margin-bottom: 10px; }
+.field { display: grid; gap: 5px; margin-bottom: 12px; }
+.field label { font-size: .8rem; color: var(--ink-2); font-weight: 500; }
+.field input, .field select { font: inherit; font-size: .875rem; height: 36px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; min-width: 0; transition: border-color .15s, box-shadow .15s; }
+.field input:hover, .field select:hover { border-color: var(--line-2); }
+.field input:focus, .field select:focus { outline: none; border-color: var(--ink-3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.repo { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 12px; margin-bottom: 10px; position: relative; }
+.repo .rm { position: absolute; top: 6px; right: 8px; border: 0; background: none; color: var(--ink-3); cursor: pointer; font: 500 .75rem var(--sans); }
+.repo .rm:hover { color: var(--bad); }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: .875rem; color: var(--ink-2); margin: 8px 0; }
+.toggle input { accent-color: var(--accent); }
+.out { min-width: 0; display: flex; flex-direction: column; }
+.out .code { flex: 1; margin: 0; max-height: 640px; overflow: auto; }
+.out-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+
+/* files tree */
+.tree { font: .8rem/1.7 var(--mono); background: var(--code-bg); color: var(--code-ink); border: 1px solid var(--code-line); border-radius: var(--radius); padding: 14px 18px; overflow-x: auto; white-space: pre; }
+.tree .d { color: var(--code-dim); }
+
+details.faq { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 0 16px; margin: 8px 0; transition: border-color .15s; }
+details.faq:hover { border-color: var(--line-2); }
+details.faq summary { cursor: pointer; padding: 13px 0; font-weight: 500; font-size: .92rem; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary::after { content: "+"; font: 400 1.1rem/1 var(--mono); color: var(--ink-3); }
+details.faq[open] summary::after { content: "−"; }
+details.faq[open] summary { border-bottom: 1px solid var(--line); }
+details.faq > div { padding: 10px 0 14px; font-size: .9rem; color: var(--ink-2); }
+
+footer { padding: 32px 0; color: var(--ink-3); font-size: .8rem; font-family: var(--mono); }
+
+@media (max-width: 920px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  nav.toc { display: none; position: fixed; top: 56px; left: 0; right: 0; bottom: 0; max-height: none; background: var(--bg); z-index: 9; padding: 16px; }
+  nav.toc.open { display: block; }
+  .menu-btn { display: inline-block; }
+  .builder { grid-template-columns: minmax(0, 1fr); }
+  .phase dl { grid-template-columns: 1fr; gap: 4px; }
+  .phase dt { margin-top: 8px; }
+  .progress .bar { display: none; }
+  .brand .sep, .brand .crumb { display: none; }
+  .hero { padding: 48px 0 40px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <button class="icon-btn menu-btn" id="menuBtn" aria-expanded="false" aria-controls="toc">Steps</button>
+    <a class="brand" href="#top" aria-label="Gaia, home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="var(--ink)"/><path d="M16 7a9 9 0 0 1 0 18c-3-2.3-4.5-5.6-4.5-9S13 9.3 16 7z" fill="var(--bg)"/></svg>
+      Gaia <span class="sep" aria-hidden="true">/</span> <span class="crumb">Tutorial</span>
+    </a>
+    <div class="progress" aria-live="polite">
+      <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
+      <span id="progressText">0 of 0 steps</span>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme">Theme</button>
+  </div>
+</header>
+
+<div class="wrap" id="top">
+  <nav class="toc" id="toc" aria-label="Tutorial steps"><ol id="tocList"></ol></nav>
+
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Tutorial</div>
+      <h1>From a ticket to a reviewed PR, in any project.</h1>
+      <p class="lead">Gaia is a software factory that runs on Claude Code. Give it a ticket key and it hands back one or more
+        pull requests: planned, implemented in isolated worktrees, with your repos' gates green, reviewed by a second agent
+        and linked to the ticket. A human always merges.</p>
+      <div class="chips">
+        <span class="chip">Linear · Jira · GitHub Issues</span><span class="chip">Any stack</span>
+        <span class="chip">One repo or many</span><span class="chip">Configured with a single file: gaia.json</span>
+      </div>
+    </div>
+
+    <!-- 1 -->
+    <section class="step" id="what-it-is" data-group="Understand" data-title="What Gaia is">
+      <div class="eyebrow">Step 1</div>
+      <h2>What Gaia is (and isn't)</h2>
+      <p>Gaia does two things, nothing more:</p>
+      <div class="grid">
+        <div class="card"><h4>Ticket → PR</h4><p><code>/ship ENG-123</code> reads the ticket, plans, implements, runs the gates, opens the PR, reviews it and links it to the ticket.</p></div>
+        <div class="card"><h4>Spec → tickets</h4><p><code>/tickets &lt;url&gt;</code> turns a PRD or a feature table into tickets with testable acceptance criteria. It only creates them with your approval.</p></div>
+      </div>
+      <svg class="flow" viewBox="0 0 860 150" role="img" aria-labelledby="flowT">
+        <title id="flowT">Gaia's flow: the ticket comes in, Gaia plans, implements in worktrees, runs the gates, opens the PR and a human merges</title>
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+        <g>
+          <rect class="box" x="4" y="40" width="120" height="64" rx="10"/><text x="64" y="68" text-anchor="middle">Ticket</text><text class="sub" x="64" y="86" text-anchor="middle">Linear · Jira · GH</text>
+          <rect class="box hl" x="160" y="40" width="120" height="64" rx="10"/><text x="220" y="68" text-anchor="middle">Plan</text><text class="sub" x="220" y="86" text-anchor="middle">planner</text>
+          <rect class="box hl" x="316" y="40" width="120" height="64" rx="10"/><text x="376" y="68" text-anchor="middle">Implement</text><text class="sub" x="376" y="86" text-anchor="middle">worktrees, per repo</text>
+          <rect class="box hl" x="472" y="40" width="120" height="64" rx="10"/><text x="532" y="68" text-anchor="middle">Gates + PR</text><text class="sub" x="532" y="86" text-anchor="middle">preflight, draft</text>
+          <rect class="box hl" x="628" y="40" width="100" height="64" rx="10"/><text x="678" y="68" text-anchor="middle">Review + CI</text><text class="sub" x="678" y="86" text-anchor="middle">reviewer</text>
+          <rect class="box" x="760" y="40" width="96" height="64" rx="10"/><text x="808" y="68" text-anchor="middle">Merge</text><text class="sub" x="808" y="86" text-anchor="middle">a human</text>
+          <path class="arrow" d="M124 72H156" marker-end="url(#ah)"/><path class="arrow" d="M280 72H312" marker-end="url(#ah)"/>
+          <path class="arrow" d="M436 72H468" marker-end="url(#ah)"/><path class="arrow" d="M592 72H624" marker-end="url(#ah)"/>
+          <path class="arrow" d="M728 72H756" marker-end="url(#ah)"/>
+          <path class="arrow" d="M376 104 V128 H220 V108" marker-end="url(#ah)" stroke-dasharray="4 4"/>
+          <text class="sub" x="298" y="142" text-anchor="middle">if a gate fails: up to 3 fix rounds</text>
+        </g>
+      </svg>
+      <h3>What it never does</h3>
+      <div class="grid two">
+        <div class="card"><h4>Never merges</h4><p>Nor pushes to <code>main</code>. A hook blocks those commands and PRs open as drafts.</p></div>
+        <div class="card"><h4>Never touches your checkouts</h4><p>It works in <code>worktrees/&lt;repo&gt;-&lt;TICKET&gt;</code>. Your repo folder stays as it is.</p></div>
+        <div class="card"><h4>Never guesses</h4><p>If the ticket has no testable criteria, it stops and asks you here, not on the tracker.</p></div>
+        <div class="card"><h4>Holds no product code</h4><p>Gaia is a folder next to your repos: skills, agents, scripts and a <code>gaia.json</code>.</p></div>
+      </div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="what-it-is"> Got it</label></div>
+    </section>
+
+    <!-- 2 -->
+    <section class="step" id="requirements" data-group="Install" data-title="Requirements">
+      <div class="eyebrow">Step 2</div>
+      <h2>Requirements</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Tool</th><th>What for</th><th>Install (macOS)</th></tr></thead>
+        <tbody>
+          <tr><td><code>claude</code></td><td>Claude Code: runs the pipeline</td><td><code>npm i -g @anthropic-ai/claude-code</code></td></tr>
+          <tr><td><code>git</code> ≥ 2.38</td><td>worktrees</td><td>ships with Xcode CLT</td></tr>
+          <tr><td><code>gh</code></td><td>open PRs, read CI</td><td><code>brew install gh &amp;&amp; gh auth login</code></td></tr>
+          <tr><td><code>jq</code></td><td>the <code>bin/</code> scripts read <code>gaia.json</code></td><td><code>brew install jq</code></td></tr>
+          <tr><td><code>docker</code></td><td>optional: if your gates or local stack use containers</td><td>Docker Desktop or OrbStack</td></tr>
+        </tbody>
+      </table></div>
+      <p>You also need your tracker's connector inside Claude Code (Linear or Jira, via MCP). For GitHub Issues, <code>gh</code> is enough.</p>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="requirements"> Everything is installed</label></div>
+    </section>
+
+    <!-- 3 -->
+    <section class="step" id="install" data-group="Install" data-title="Put Gaia next to your repos">
+      <div class="eyebrow">Step 3</div>
+      <h2>Put Gaia next to your repos</h2>
+      <p>Gaia lives in a sibling folder of your repos. It doesn't matter how many there are: one, two or ten.</p>
+      <div class="tree"><span class="d">~/code/</span>
+├── gaia/              <span class="d">← this folder</span>
+│   ├── gaia.json      <span class="d">← your project, described in one file</span>
+│   ├── bin/           <span class="d">← the deterministic steps (gates, worktrees, preflight…)</span>
+│   ├── .claude/       <span class="d">← skills, agents, commands and hooks</span>
+│   ├── docs/          <span class="d">← vision.md (yours), primitives.md, config.md</span>
+│   ├── runs/          <span class="d">← per-ticket state (not committed)</span>
+│   ├── specs/         <span class="d">← the durable record of each ticket</span>
+│   └── worktrees/     <span class="d">← where Gaia works (not committed)</span>
+├── acme-api/          <span class="d">← your repos, which Gaia never modifies directly</span>
+└── acme-web/</div>
+      <div class="code"><button class="copy">Copy</button><pre>cd ~/code
+git clone &lt;gaia-url&gt; gaia
+cd gaia</pre></div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="install"> Gaia is cloned</label></div>
+    </section>
+
+    <!-- 4 -->
+    <section class="step" id="configure" data-group="Configure" data-title="Create gaia.json">
+      <div class="eyebrow">Step 4</div>
+      <h2>Describe your project in <code>gaia.json</code></h2>
+      <p>Everything that used to be hard-coded (which repos exist, which gates run, where the tickets live) now lives in one file. There are three ways to create it:</p>
+      <div class="grid">
+        <div class="card"><h4>A. Let it detect</h4><p><code>bin/gaia init</code> looks at each repo (package.json, pyproject, Makefile, compose) and proposes gates.</p></div>
+        <div class="card"><h4>B. Let Claude guide you</h4><p>Open <code>claude</code> in the folder and run <code>/gaia-setup</code>: it reads your repos, proposes and asks.</p></div>
+        <div class="card"><h4>C. Build it below</h4><p>Fill in the form and download the file.</p></div>
+      </div>
+      <div class="code"><span class="label">Option A</span><button class="copy">Copy</button><pre>bin/gaia init --tracker linear --team ENG --name Acme ../acme-api ../acme-web
+<span class="c"># found acme-api (python, contract-owner, base main): lint, openapi</span>
+<span class="c"># found acme-web (node, consumer, base main): lint, typecheck</span>
+<span class="c"># wrote gaia.json</span></pre></div>
+
+      <h3>Option C: <code>gaia.json</code> generator</h3>
+      <div class="builder">
+        <form class="form" id="builder" onsubmit="return false" aria-label="gaia.json generator">
+          <fieldset><legend>Project</legend>
+            <div class="field"><label for="b-name">Name</label><input id="b-name" value="Acme"></div>
+            <div class="field"><label for="b-desc">One-line description</label><input id="b-desc" value="B2B invoicing app: a REST API and a React client."></div>
+          </fieldset>
+          <fieldset><legend>Tracker</legend>
+            <div class="row2">
+              <div class="field"><label for="b-tracker">Where tickets live</label>
+                <select id="b-tracker"><option value="linear">Linear</option><option value="jira">Jira</option><option value="github">GitHub Issues</option><option value="none">None (I paste them by hand)</option></select></div>
+              <div class="field" id="b-team-f"><label for="b-team">Team / key</label><input id="b-team" value="ENG"></div>
+            </div>
+            <div class="field" id="b-ghrepo-f" hidden><label for="b-ghrepo">Issues repo (owner/name)</label><input id="b-ghrepo" placeholder="acme/acme-web"></div>
+            <div class="field"><label for="b-lang">Language for what's written to the tracker</label><input id="b-lang" value="English"></div>
+          </fieldset>
+          <fieldset><legend>Repos</legend>
+            <div id="b-repos"></div>
+            <button class="btn" type="button" id="b-add">+ Add repo</button>
+            <label class="toggle"><input type="checkbox" id="b-docker" checked> My gates run in Docker (compose)</label>
+          </fieldset>
+          <fieldset><legend>Git and QA</legend>
+            <div class="row2">
+              <div class="field"><label for="b-base">Base branch</label><input id="b-base" value="main"></div>
+              <div class="field"><label for="b-prefix">Branch prefix</label><input id="b-prefix" value="feat/"></div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="b-draft" checked> Open all PRs as drafts</label>
+            <label class="toggle"><input type="checkbox" id="b-stack"> I have a local stack for browser QA</label>
+            <div id="b-stack-f" hidden>
+              <div class="row2">
+                <div class="field"><label for="b-stackdir">Stack folder</label><input id="b-stackdir" value="../acme-api"></div>
+                <div class="field"><label for="b-url">App URL</label><input id="b-url" value="http://localhost:3000"></div>
+              </div>
+            </div>
+          </fieldset>
+        </form>
+        <div class="out">
+          <div class="code"><span class="label">gaia.json</span><button class="copy" data-target="b-out">Copy</button><pre id="b-out"></pre></div>
+          <div class="out-actions">
+            <button class="btn primary" type="button" id="b-dl">Download gaia.json</button>
+            <span class="small muted">Save it at the root of the <code>gaia/</code> folder. Then: <code>bin/gaia doctor</code>.</span>
+          </div>
+        </div>
+      </div>
+
+      <h3>The pieces that matter most</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>What it decides</th></tr></thead>
+        <tbody>
+          <tr><td><code>repos[].role</code></td><td><code>contract-owner</code> goes first (wave A: owns the API); <code>consumer</code>, <code>primary</code>, <code>service</code> and <code>infra</code> go after (wave B), in parallel.</td></tr>
+          <tr><td><code>repos[].gates[]</code></td><td>Commands that must exit 0 before the PR. <code>"fast": false</code> = only in the full run.</td></tr>
+          <tr><td><code>repos[].tests.policy</code></td><td><code>ci-only</code> (default): tests run in the PR's CI. <code>local</code>: Gaia runs them and proves they fail without the change.</td></tr>
+          <tr><td><code>repos[].contract</code></td><td>How to regenerate the contract (OpenAPI…) and the consumer's typed client.</td></tr>
+          <tr><td><code>repos[].notes</code> · <code>review_checklist</code></td><td>House rules the implementer reads and the reviewer checks one by one.</td></tr>
+          <tr><td><code>rules[]</code></td><td>Project rules in plain text. They are binding.</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted">Full reference: <code>docs/config.md</code>. Examples: <code>examples/gaia.example.json</code> (API + web), <code>examples/gaia.minimal.json</code> (one repo with GitHub Issues).</p>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="configure"> I have my gaia.json</label></div>
+    </section>
+
+    <!-- 5 -->
+    <section class="step" id="docs" data-group="Configure" data-title="Vision and primitives">
+      <div class="eyebrow">Step 5</div>
+      <h2>Tell Gaia what "good" means in your product</h2>
+      <p>Two short files make the difference between a generic PR and one that respects your product:</p>
+      <div class="grid two">
+        <div class="card"><h4><code>docs/vision.md</code>: yours</h4><p>Who the product is for, what "done well" means, the UI style and what Gaia never decides on its own. Agents read it at the start of every session and can't edit it.</p></div>
+        <div class="card"><h4><code>docs/primitives.md</code>: risk</h4><p>The delicate pieces (auth, money, migrations, API contract) with their default risk. On high risk, the PR opens as a draft with the <code>needs-human</code> label.</p></div>
+      </div>
+      <div class="callout"><b>Tip</b>Add the real paths to the primitives table (for example <code>api/app/security/</code>). The planner uses them to grade risk precisely.</div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="docs"> I filled in vision and primitives</label></div>
+    </section>
+
+    <!-- 6 -->
+    <section class="step" id="doctor" data-group="Configure" data-title="Check and connect">
+      <div class="eyebrow">Step 6</div>
+      <h2>Check and connect</h2>
+      <div class="code"><button class="copy">Copy</button><pre>bin/gaia doctor
+<span class="c">tools</span>
+<span class="c">  ok    claude · git · jq · gh</span>
+<span class="c">config</span>
+<span class="c">  ok    gaia.json is valid JSON · 2 repo(s) · tracker: linear</span>
+<span class="c">repos</span>
+<span class="c">  ok    api: ../acme-api (base main on origin) · has CLAUDE.md · 2 gate(s), tests: ci-only</span>
+<span class="c">  warn  web: no CLAUDE.md — implementers work blind on conventions</span></pre></div>
+      <p>Then open Claude Code in the Gaia folder and connect the tracker:</p>
+      <div class="code"><button class="copy">Copy</button><pre>claude
+/mcp          <span class="c"># log in to Linear / Jira (and your docs tool, if you use one)</span></pre></div>
+      <div class="callout warn"><b>Every repo should have its CLAUDE.md</b>It's what the implementer reads before touching code: layers, conventions, how migrations are done. Without it Gaia still works, but it guesses more.</div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="doctor"> doctor is green and the tracker is connected</label></div>
+    </section>
+
+    <!-- 7 -->
+    <section class="step" id="first-ticket" data-group="Use" data-title="Your first ticket">
+      <div class="eyebrow">Step 7</div>
+      <h2>Your first ticket</h2>
+      <p>Pick a small one with clear acceptance criteria. Inside Claude Code:</p>
+      <div class="code"><button class="copy">Copy</button><pre>/ship ENG-123</pre></div>
+      <p>Or without opening anything, headless: <code>bin/gaia run ENG-123</code>. Step through the phases to see what happens in each:</p>
+      <div class="pipe" role="tablist" aria-label="Pipeline phases" id="pipe"></div>
+      <div class="phase" role="tabpanel" id="phasePanel" aria-live="polite"></div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="first-ticket"> I ran my first /ship</label></div>
+    </section>
+
+    <!-- 8 -->
+    <section class="step" id="blocked" data-group="Use" data-title="When it stops">
+      <div class="eyebrow">Step 8</div>
+      <h2>When Gaia stops</h2>
+      <p>Stopping in time is part of the design. Every block is recorded in <code>runs/&lt;T&gt;/state.json</code> and resumes from there.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>State</th><th>Why</th><th>What you do</th></tr></thead>
+        <tbody>
+          <tr><td><code>blocked-needs-info</code></td><td>The ticket has no testable criteria or the plan has open questions.</td><td>Answer in the chat (or see <code>runs/T/questions.md</code>), then <code>bin/gaia resume T</code>.</td></tr>
+          <tr><td><code>blocked-needs-split</code></td><td>It's more than one feature or exceeds the file limit.</td><td>Review the proposed split and create the sub-tickets.</td></tr>
+          <tr><td><code>blocked-gates</code></td><td>A gate is still red after 3 rounds.</td><td>Check <code>runs/T/gates-&lt;repo&gt;.log</code>. Sometimes it's the gate, not the change.</td></tr>
+          <tr><td><code>blocked-ci</code></td><td>The PR's CI is still red after 2 rounds.</td><td>Check the job and fix it yourself or with <code>/address-review T</code>.</td></tr>
+          <tr><td><code>blocked-stack</code></td><td>Another ticket holds the local stack.</td><td><code>bin/stack-lock status</code>. Wait, or release it if it's stale.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="blocked"> I know how to unblock a ticket</label></div>
+    </section>
+
+    <!-- 9 -->
+    <section class="step" id="review" data-group="Use" data-title="Review and merge">
+      <div class="eyebrow">Step 9</div>
+      <h2>Review and merge</h2>
+      <p>At the end of every run you get:</p>
+      <div class="grid two">
+        <div class="card"><h4>The PR (draft)</h4><p>With the why, what changed, the risk, the gates, how to revert it and proposed follow-ups.</p></div>
+        <div class="card"><h4><code>runs/T/manual-test.md</code></h4><p>A guide to test it by hand: setup, steps per criterion, edge cases and what wasn't tested.</p></div>
+        <div class="card"><h4><code>runs/T/review.md</code></h4><p>What the independent reviewer found and what was fixed or dismissed (and why).</p></div>
+        <div class="card"><h4><code>specs/T.md</code></h4><p>The durable record: intent, decisions, lessons and pending cleanup.</p></div>
+      </div>
+      <p>Comments on the PR or a red check? Run <code>/address-review ENG-123</code>: it fixes what's warranted, explains what isn't, and pushes. When you're happy, <b>you</b> take the PR out of draft and merge it.</p>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="review"> I reviewed and merged a Gaia PR</label></div>
+    </section>
+
+    <!-- 10 -->
+    <section class="step" id="tickets" data-group="Use" data-title="Spec to tickets (PMs)">
+      <div class="eyebrow">Step 10</div>
+      <h2>From a spec to tickets (for PMs)</h2>
+      <p>Hand Gaia a PRD, a page or a feature table (Notion, Coda, Google Docs, Confluence…):</p>
+      <div class="code"><button class="copy">Copy</button><pre>/tickets https://notion.so/acme/Invoices-PRD-…</pre></div>
+      <ol>
+        <li><b>Reads</b> the page, its tables and unresolved comments, read-only.</li>
+        <li><b>Gathers context</b>: design links, current behavior in the code and duplicate tickets.</li>
+        <li><b>Drafts</b>: one per user-visible outcome, with Given/When/Then criteria.</li>
+        <li><b>Reviews them with you</b>: a summary table and all the questions together.</li>
+        <li><b>Creates</b> the tickets only when you say "yes, create them", for that exact list.</li>
+      </ol>
+      <p>Then: <code>bin/gaia queue ENG-140 ENG-141 ENG-142</code> builds them one after another.</p>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="tickets"> I tried /tickets</label></div>
+    </section>
+
+    <!-- 11 -->
+    <section class="step" id="stack" data-group="Going further" data-title="Browser QA">
+      <div class="eyebrow">Step 11</div>
+      <h2>Browser QA with your local stack (optional)</h2>
+      <p>If you enable <code>stack.enabled</code>, Gaia can bring up your app with the ticket's code and walk each criterion with Playwright, taking screenshots. It only does so when you ask:</p>
+      <div class="code"><button class="copy">Copy</button><pre>bin/gaia run --browser ENG-123
+<span class="c"># or, in the chat: "/ship ENG-123 with browser QA"</span></pre></div>
+      <p><code>bin/stack up T</code> takes an exclusive lock, exports one variable per worktree and runs your <code>stack.up</code>. Your compose decides how to use them:</p>
+      <div class="code"><span class="label">compose.gaia.yml</span><button class="copy">Copy</button><pre>services:
+  api: { build: { context: "${GAIA_WT_API:-../acme-api}" } }
+  web: { build: { context: "${GAIA_WT_WEB:-../acme-web}" } }
+<span class="c"># without the variables → your checkouts; with them → the ticket's worktrees</span></pre></div>
+      <p>When done, <code>bin/stack down T</code> goes back to your checkouts and releases the lock, even if QA failed.</p>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="stack"> I set up the stack (or decided not to)</label></div>
+    </section>
+
+    <!-- 12 -->
+    <section class="step" id="headless" data-group="Going further" data-title="Queue, polling and schedules">
+      <div class="eyebrow">Step 12</div>
+      <h2>Queued, by label or scheduled</h2>
+      <div class="code"><button class="copy">Copy</button><pre>bin/gaia queue ENG-140 ENG-141 https://linear.app/acme/issue/ENG-142   <span class="c"># one at a time; blocked ones are skipped</span>
+bin/gaia poll                                                         <span class="c"># picks up issues labeled "gaia" (up to 3 at a time)</span>
+bin/gaia status                                                       <span class="c"># what's in flight</span>
+GAIA_BUDGET_USD=15 bin/gaia run ENG-143                                <span class="c"># spend cap per run</span></pre></div>
+      <p>To have it run on its own on macOS, install the templates from <code>ops/</code>:</p>
+      <div class="code"><button class="copy">Copy</button><pre>sed "s#__GAIA_DIR__#$PWD#" ops/com.gaia.poll.plist > ~/Library/LaunchAgents/com.gaia.poll.plist
+launchctl load ~/Library/LaunchAgents/com.gaia.poll.plist</pre></div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="headless"> I know how to run it unattended</label></div>
+    </section>
+
+    <!-- 13 -->
+    <section class="step" id="improve" data-group="Going further" data-title="Continuous improvement">
+      <div class="eyebrow">Step 13</div>
+      <h2>Gaia learns from its stumbles</h2>
+      <div class="grid two">
+        <div class="card"><h4><code>FRICTION.md</code></h4><p>Every retry or workaround is logged in one line, with its likely cause.</p></div>
+        <div class="card"><h4><code>/reap-friction</code></h4><p>Groups the entries by cause and proposes fixes: a new script, a clearer skill, a corrected gate.</p></div>
+        <div class="card"><h4><code>/nightly</code></h4><p>Flaky tests, pending cleanup, drift between docs and code, and exploratory QA. Reports first; creates nothing without <code>GAIA_NIGHTLY_FILE=1</code>.</p></div>
+        <div class="card"><h4><code>specs/</code></h4><p>The decisions and lessons of each ticket. The planner reads them before touching the same area.</p></div>
+      </div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="improve"> Done</label></div>
+    </section>
+
+    <!-- 14 -->
+    <section class="step" id="safety" data-group="Reference" data-title="Safety rules">
+      <div class="eyebrow">Step 14</div>
+      <h2>Safety rules</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Rule</th><th>Enforced by</th></tr></thead>
+        <tbody>
+          <tr><td>Never merge, never push to the base branch</td><td>Deny list in <code>.claude/settings.json</code> + <code>guard-git.sh</code> hook</td></tr>
+          <tr><td>Commits only on <code>feat/…</code> branches inside <code>worktrees/</code></td><td><code>guard-git.sh</code></td></tr>
+          <tr><td>No secrets or stray files in the PR</td><td><code>bin/preflight</code> (fails closed)</td></tr>
+          <tr><td>Gates green before the PR</td><td><code>bin/gates</code> → <code>gates.md</code> → <code>bin/preflight</code></td></tr>
+          <tr><td>Ticket text is data, not an instruction</td><td>Skills <code>ship-ticket</code> and <code>tracker-sync</code></td></tr>
+          <tr><td>No creating tickets or writing to docs without approval</td><td><code>docs-to-tickets</code>, <code>tracker.*</code>, <code>docs.write_allowed</code></td></tr>
+          <tr><td><code>docs/vision.md</code> is edited by humans only</td><td>Deny list</td></tr>
+        </tbody>
+      </table></div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="safety"> Read</label></div>
+    </section>
+
+    <!-- 15 -->
+    <section class="step" id="commands" data-group="Reference" data-title="Commands">
+      <div class="eyebrow">Step 15</div>
+      <h2>All commands</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>/ship T</code> · <code>bin/gaia run [--browser] T</code></td><td>Full pipeline for one ticket</td></tr>
+          <tr><td><code>bin/gaia resume T</code></td><td>Resumes from the last phase</td></tr>
+          <tr><td><code>bin/gaia queue [--browser] T…</code></td><td>Several tickets, one at a time</td></tr>
+          <tr><td><code>/tickets URL</code> · <code>bin/gaia tickets URL</code></td><td>Spec → ticket drafts (headless: creates nothing)</td></tr>
+          <tr><td><code>/address-review T</code> · <code>bin/gaia address T</code></td><td>Answers PR comments and red checks</td></tr>
+          <tr><td><code>/gaia-status</code> · <code>bin/gaia status</code></td><td>Tickets in flight, stack lock, recent friction</td></tr>
+          <tr><td><code>/gaia-setup</code> · <code>bin/gaia init</code></td><td>Guided or automatic setup</td></tr>
+          <tr><td><code>bin/gaia doctor</code></td><td>Checks tools, config and repos</td></tr>
+          <tr><td><code>bin/gaia poll</code></td><td>Picks up issues with the pickup label</td></tr>
+          <tr><td><code>/nightly</code> · <code>/reap-friction</code></td><td>Background quality and self-improvement</td></tr>
+          <tr><td><code>bin/gaia tutorial</code></td><td>Opens this page</td></tr>
+        </tbody>
+      </table></div>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="commands"> Done</label></div>
+    </section>
+
+    <!-- 16 -->
+    <section class="step" id="faq" data-group="Reference" data-title="FAQ">
+      <div class="eyebrow">Step 16</div>
+      <h2>Frequently asked questions</h2>
+      <details class="faq"><summary>Does it work with a single repo?</summary><div>Yes. A single repo with <code>role: "primary"</code> is enough. See <code>examples/gaia.minimal.json</code>.</div></details>
+      <details class="faq"><summary>What if my stack isn't Node or Python?</summary><div>Gates are shell commands. Exit code 0 means PASS. Go, Rust, JVM, .NET, PHP, whatever: put the command you'd run in your CI for lint and typecheck.</div></details>
+      <details class="faq"><summary>Why do tests run only in CI by default?</summary><div>Because in many projects the local suite is slow or needs infrastructure. The PR runs them anyway and Gaia reads the result in the <code>ci</code> phase. If your suite is fast, set <code>tests.policy: "local"</code> and you also get <code>bin/prove-red</code>.</div></details>
+      <details class="faq"><summary>Can I use another tracker?</summary><div>Linear, Jira and GitHub Issues work out of the box. With <code>tracker.kind: "none"</code> you paste the ticket by hand. For another tracker with an MCP, add a section to <code>.claude/skills/tracker-sync/SKILL.md</code>.</div></details>
+      <details class="faq"><summary>How much does a run cost?</summary><div>In headless mode, <code>bin/gaia</code> prints the cost at the end (from <code>runs/T/cost.json</code>). <code>GAIA_BUDGET_USD</code> sets a cap. The cost is never posted to the tracker.</div></details>
+      <details class="faq"><summary>How do I clean up old worktrees?</summary><div><code>/gaia-status</code> offers to delete the ones for tickets whose PR was merged, and always asks first.</div></details>
+      <details class="faq"><summary>A gate always fails, even on main</summary><div>That's a config or repo problem, not the ticket's. Fix the command in <code>gaia.json</code> or fix the repo; <code>bin/gaia doctor</code> and <code>runs/T/gates-&lt;repo&gt;.log</code> tell you which.</div></details>
+      <div class="done-row"><label class="check"><input type="checkbox" data-step="faq"> I finished the tutorial</label></div>
+    </section>
+
+    <footer>Gaia · a software factory on Claude Code. This page is static: your progress is saved only in this browser.</footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("gaia:" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem("gaia:" + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
+  };
+
+  /* theme */
+  const root = document.documentElement;
+  const savedTheme = store.get("theme", null);
+  if (savedTheme) root.setAttribute("data-theme", savedTheme);
+  document.getElementById("themeBtn").addEventListener("click", () => {
+    const cur = root.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const next = cur === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next); store.set("theme", next);
+  });
+
+  /* toc + progress */
+  const steps = [...document.querySelectorAll("section.step")];
+  const tocList = document.getElementById("tocList");
+  let lastGroup = "";
+  steps.forEach((s, i) => {
+    if (s.dataset.group !== lastGroup) {
+      lastGroup = s.dataset.group;
+      const g = document.createElement("li"); g.className = "group"; g.textContent = lastGroup; g.setAttribute("aria-hidden", "true"); tocList.appendChild(g);
+    }
+    const li = document.createElement("li"); li.dataset.step = s.id;
+    li.innerHTML = '<a href="#' + s.id + '"><span class="num">' + (i + 1) + '</span><span></span></a>';
+    li.querySelector("span:last-child").textContent = s.dataset.title;
+    tocList.appendChild(li);
+  });
+  const done = new Set(store.get("done", []));
+  const boxes = [...document.querySelectorAll('input[type=checkbox][data-step]')];
+  function renderProgress() {
+    boxes.forEach(b => { b.checked = done.has(b.dataset.step); });
+    tocList.querySelectorAll("li[data-step]").forEach(li => li.classList.toggle("done", done.has(li.dataset.step)));
+    const n = steps.filter(s => done.has(s.id)).length;
+    document.getElementById("barFill").style.width = (100 * n / steps.length) + "%";
+    document.getElementById("progressText").textContent = n + " of " + steps.length + " steps";
+  }
+  boxes.forEach(b => b.addEventListener("change", () => {
+    if (b.checked) done.add(b.dataset.step); else done.delete(b.dataset.step);
+    store.set("done", [...done]); renderProgress();
+  }));
+  renderProgress();
+
+  const links = [...tocList.querySelectorAll("a")];
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + e.target.id)); });
+  }, { rootMargin: "-30% 0px -60% 0px" });
+  steps.forEach(s => io.observe(s));
+
+  const toc = document.getElementById("toc"), menuBtn = document.getElementById("menuBtn");
+  menuBtn.addEventListener("click", () => { const o = toc.classList.toggle("open"); menuBtn.setAttribute("aria-expanded", String(o)); });
+  links.forEach(a => a.addEventListener("click", () => { toc.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }));
+
+  /* copy buttons */
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(".copy"); if (!btn) return;
+    const pre = btn.dataset.target ? document.getElementById(btn.dataset.target) : btn.parentElement.querySelector("pre");
+    const text = [...pre.childNodes].filter(n => !(n.nodeType === 1 && n.classList.contains("c"))).map(n => n.textContent).join("").replace(/[ \t]+$/gm, "").trim();
+    const ok = () => { const t = btn.textContent; btn.textContent = "Copied"; setTimeout(() => { btn.textContent = t; }, 1200); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(ok, () => {});
+  });
+
+  /* pipeline stepper */
+  const phases = [
+    { id: "intake", name: "Intake", who: "orchestrator · tracker-sync skill", what: "Reads the ticket, its comments, attachments and linked specs. Classifies it as bug, feature or chore and extracts numbered acceptance criteria.", files: "runs/T/ticket.md", stop: "If there are no testable criteria: it asks you here (never on the tracker) → blocked-needs-info." },
+    { id: "plan", name: "Plan", who: "planner agent (read-only)", what: "Reads gaia.json, vision.md, primitives.md, earlier specs/ and each repo's CLAUDE.md. Decides which repos it touches and in which wave, which tests each criterion maps to, the risk and the branch name.", files: "runs/T/plan.md", stop: "Low confidence → blocked-needs-info. Too big → proposes how to split it → blocked-needs-split." },
+    { id: "worktrees", name: "Worktrees", who: "bin/worktree", what: "Creates one worktree per affected repo, on a feat/<ticket>-<slug> branch off origin/main. Copies the local files it needs (.env).", files: "worktrees/<repo>-T/", stop: "Your checkouts are not touched." },
+    { id: "implement", name: "Implement", who: "implementer agent, one per repo", what: "Wave A: the contract owner (the API). Wave B: the rest, in parallel. For bugs, the failing test first, then the fix. If the contract changes, it regenerates the consumer's client.", files: "code + tests in the worktree", stop: "Each wave must pass bin/gates --fast before moving on." },
+    { id: "prove", name: "Prove-red", who: "bin/prove-red", what: "Only for repos with tests.policy: local. Runs the new tests against the base branch without the change and they must fail; otherwise they prove nothing.", files: "runs/T/prove-red-<repo>.log", stop: "With ci-only it's skipped and noted." },
+    { id: "gates", name: "Gates", who: "bin/gates", what: "Runs every gate from gaia.json for each touched repo. Each one prints PASS, FAIL or SKIP.", files: "runs/T/gates.md, gates-<repo>.log", stop: "Up to 3 fix rounds per repo → blocked-gates." },
+    { id: "qa", name: "QA", who: "e2e-verify skill + qa-browser agent", what: "Only if you asked for it in this run (--browser). Brings up the stack with the worktrees, walks each criterion in Playwright, takes screenshots and checks the console and network.", files: "runs/T/qa.md, runs/T/qa/*.png", stop: "If you didn't ask, it writes browser: no (not requested) and moves on." },
+    { id: "pr", name: "PR", who: "bin/preflight + pr-writer skill", what: "Preflight fails closed: correct branch, gates green, no secrets or stray files, and no more files than the limit. Then commit, push and a draft PR, one per repo and linked to each other.", files: "runs/T/pr-<repo>.md", stop: "Any preflight FAIL stops the push." },
+    { id: "review", name: "Review", who: "reviewer agent (clean context)", what: "Reviews the diff against the criteria, the repo's CLAUDE.md and its review_checklist. The implementer validates each finding: fixes the real ones and explains why it dismisses the others.", files: "runs/T/review.md", stop: "Re-runs the gates and preflight before pushing." },
+    { id: "ci", name: "CI", who: "gh pr checks --watch", what: "Waits for the PR's CI. If something goes red, it reads the failed job's log, fixes it and pushes.", files: "—", stop: "Up to 2 rounds → blocked-ci." },
+    { id: "close", name: "Close-out", who: "orchestrator", what: "Links the PRs to the ticket, writes the durable record and the manual-test guide, logs friction and releases the stack. Only comments or moves the status if gaia.json allows it.", files: "specs/T.md, runs/T/manual-test.md, FRICTION.md", stop: "Phase → done. You do the merge." }
+  ];
+  const pipe = document.getElementById("pipe"), panel = document.getElementById("phasePanel");
+  let cur = 0;
+  phases.forEach((p, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.id = "tab-" + p.id;
+    b.setAttribute("aria-controls", "phasePanel");
+    b.innerHTML = '<span class="n">' + (i + 1) + '</span><span></span>'; b.lastChild.textContent = p.name;
+    b.addEventListener("click", () => show(i));
+    b.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight") { show(Math.min(phases.length - 1, cur + 1)); pipe.children[cur].focus(); }
+      if (e.key === "ArrowLeft") { show(Math.max(0, cur - 1)); pipe.children[cur].focus(); }
+    });
+    pipe.appendChild(b);
+  });
+  function el(tag, text, cls) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function show(i) {
+    cur = i; const p = phases[i];
+    [...pipe.children].forEach((b, j) => { b.setAttribute("aria-selected", String(j === i)); b.tabIndex = j === i ? 0 : -1; });
+    panel.setAttribute("aria-labelledby", "tab-" + p.id);
+    panel.replaceChildren();
+    panel.appendChild(el("h4", (i + 1) + ". " + p.name));
+    panel.appendChild(el("div", p.who, "who"));
+    const dl = el("dl");
+    [["What it does", p.what], ["Leaves on disk", p.files], ["When it stops", p.stop]].forEach(([k, v]) => { dl.appendChild(el("dt", k)); dl.appendChild(el("dd", v, k === "Leaves on disk" ? "mono" : null)); });
+    panel.appendChild(dl);
+    const nav = el("div", null, "nav");
+    const prev = el("button", "← Previous", "btn"); prev.type = "button"; prev.disabled = i === 0; prev.onclick = () => show(i - 1);
+    const next = el("button", i === phases.length - 1 ? "Done ✓" : "Next →", "btn primary"); next.type = "button";
+    next.onclick = () => { if (i < phases.length - 1) show(i + 1); else document.getElementById("blocked").scrollIntoView(); };
+    nav.append(prev, next); panel.appendChild(nav);
+  }
+  show(0);
+
+  /* gaia.json builder */
+  const $ = id => document.getElementById(id);
+  const stacks = { node: "Node / TS", python: "Python", go: "Go", rust: "Rust", jvm: "JVM", infra: "Infra (compose, CI)", other: "Other" };
+  const roles = { "contract-owner": "Contract owner (wave A)", primary: "Primary", service: "Service", consumer: "Consumer (wave B)", infra: "Infra" };
+  let repos = store.get("builderRepos", [
+    { name: "api", path: "../acme-api", role: "contract-owner", stack: "python" },
+    { name: "web", path: "../acme-web", role: "consumer", stack: "node" }
+  ]);
+  function gatesFor(r, docker) {
+    if (docker && r.stack !== "infra") return [{ name: "lint", cmd: "docker compose --profile lint run --build --rm lint" }];
+    switch (r.stack) {
+      case "node": return [{ name: "lint", cmd: "npm run lint" }, { name: "typecheck", cmd: "npx tsc --noEmit" }];
+      case "python": return [{ name: "lint", cmd: "ruff check . && ruff format --check ." }];
+      case "go": return [{ name: "vet", cmd: "go vet ./..." }, { name: "fmt", cmd: "test -z \"$(gofmt -l .)\"" }];
+      case "rust": return [{ name: "fmt", cmd: "cargo fmt --check" }, { name: "clippy", cmd: "cargo clippy -- -D warnings", fast: false }];
+      case "jvm": return [{ name: "check", cmd: "./gradlew check -x test" }];
+      case "infra": return [{ name: "compose-config", cmd: "docker compose config -q" }];
+      default: return [{ name: "lint", cmd: "make lint" }];
+    }
+  }
+  function opt(sel, map, val) { Object.entries(map).forEach(([k, v]) => { const o = el("option", v); o.value = k; if (k === val) o.selected = true; sel.appendChild(o); }); }
+  function renderRepos() {
+    const box = $("b-repos"); box.replaceChildren();
+    repos.forEach((r, i) => {
+      const d = el("div", null, "repo");
+      const rm = el("button", "Remove", "rm"); rm.type = "button"; rm.setAttribute("aria-label", "Remove repo " + (r.name || i + 1));
+      rm.onclick = () => { repos.splice(i, 1); renderRepos(); build(); }; d.appendChild(rm);
+      const row1 = el("div", null, "row2"), row2 = el("div", null, "row2");
+      [["name", "Name"], ["path", "Path"]].forEach(([k, label]) => {
+        const f = el("div", null, "field"); const id = "r" + i + k; const l = el("label", label); l.htmlFor = id;
+        const inp = el("input"); inp.id = id; inp.value = r[k]; inp.oninput = () => { r[k] = inp.value.trim(); build(); };
+        f.append(l, inp); row1.appendChild(f);
+      });
+      [["role", "Role", roles], ["stack", "Stack", stacks]].forEach(([k, label, map]) => {
+        const f = el("div", null, "field"); const id = "r" + i + k; const l = el("label", label); l.htmlFor = id;
+        const s = el("select"); s.id = id; opt(s, map, r[k]); s.onchange = () => { r[k] = s.value; build(); };
+        f.append(l, s); row2.appendChild(f);
+      });
+      d.append(row1, row2); box.appendChild(d);
+    });
+  }
+  $("b-add").onclick = () => { repos.push({ name: "repo" + (repos.length + 1), path: "../repo" + (repos.length + 1), role: "service", stack: "node" }); renderRepos(); build(); };
+  function build() {
+    const kind = $("b-tracker").value, team = $("b-team").value.trim();
+    $("b-ghrepo-f").hidden = kind !== "github"; $("b-team-f").hidden = kind === "github" || kind === "none";
+    $("b-stack-f").hidden = !$("b-stack").checked;
+    const docker = $("b-docker").checked;
+    const owner = repos.find(r => r.role === "contract-owner");
+    const cfg = {
+      project: { name: $("b-name").value.trim(), description: $("b-desc").value.trim() },
+      tracker: {
+        kind,
+        ...(kind === "linear" || kind === "jira" ? { team } : {}),
+        ...(kind === "github" ? { github_repo: $("b-ghrepo").value.trim() } : {}),
+        key_pattern: kind === "github" ? "GH-[0-9]+" : (team && /^[A-Z][A-Z0-9]*$/.test(team) ? team + "-[0-9]+" : "[A-Z][A-Z0-9]+-[0-9]+"),
+        pickup_label: "gaia", language: $("b-lang").value.trim() || "English", comment_on_tickets: false, move_status: false
+      },
+      docs: { kind: "any", write_allowed: false },
+      git: { base: $("b-base").value.trim() || "main", remote: "origin", branch_prefix: $("b-prefix").value.trim() || "feat/", draft_prs: $("b-draft").checked, max_files: 40 },
+      repos: repos.map(r => {
+        const o = { name: r.name, path: r.path, role: r.role, stack: r.stack, description: "", gates: gatesFor(r, docker), tests: { policy: "ci-only" }, copy_files: [".env"], notes: "", review_checklist: [] };
+        if (r.role === "contract-owner") o.contract = { file: "openapi.json", regen: docker ? "docker compose --profile openapi run --build --rm openapi" : "TODO: command that regenerates openapi.json" };
+        if (r.role === "consumer" && owner) o.contract = { from: owner.name, file: "openapi.json", codegen: docker ? "docker compose --profile codegen run --build --rm codegen" : "TODO: command that regenerates the typed client" };
+        return o;
+      }),
+      stack: $("b-stack").checked
+        ? { enabled: true, dir: $("b-stackdir").value.trim(), up: "docker compose -f compose.yml -f compose.gaia.yml up -d --build", smoke: "", restore: "docker compose up -d --build", urls: { app: $("b-url").value.trim() }, login: "", logs: "docker compose logs --since 15m" }
+        : { enabled: false },
+      design: { figma: false },
+      rules: []
+    };
+    const json = JSON.stringify(cfg, null, 2);
+    $("b-out").textContent = json;
+    store.set("builderRepos", repos);
+    return json;
+  }
+  ["b-name", "b-desc", "b-team", "b-ghrepo", "b-lang", "b-base", "b-prefix", "b-stackdir", "b-url"].forEach(id => $(id).addEventListener("input", build));
+  ["b-tracker", "b-docker", "b-draft", "b-stack"].forEach(id => $(id).addEventListener("change", build));
+  $("b-dl").onclick = () => {
+    const blob = new Blob([build() + "\n"], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "gaia.json"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  renderRepos(); build();
+})();
+</script>
+</body>
+</html>
