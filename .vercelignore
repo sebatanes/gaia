@@ -1,0 +1,5 @@
+.env
+.env.*
+runs
+worktrees
+.claude/settings.local.json

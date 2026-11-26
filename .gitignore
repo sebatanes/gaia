@@ -3,3 +3,5 @@ runs/*
 worktrees/
 .claude/settings.local.json
 .DS_Store
+.vercel
+.env*
